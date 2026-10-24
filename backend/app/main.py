@@ -11,9 +11,7 @@ from .database import Base, engine, get_db
 
 Base.metadata.create_all(engine)
 
-app = FastAPI(title="SafeSight AI", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"],
-                   allow_methods=["*"], allow_headers=["*"])
+
 
 FOLLOW_UP = {
     "no_helmet": "Verify on footage; if confirmed, brief the worker and supervisor per your site safety procedure.",
