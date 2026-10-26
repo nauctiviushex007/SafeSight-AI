@@ -24,14 +24,29 @@ def load():
     return _model
 
 
-def status():
+def status(check_load=True):
+    # The status endpoint can request a non-blocking check so it never
+    # triggers heavyweight YOLO/PyTorch initialization just to report health.
+    if _model is None and not check_load:
+        exists = os.path.exists(MODEL_PATH)
+        return {
+            "loaded": False,
+            "path": MODEL_PATH,
+            "model_file_exists": exists,
+            "error": "Model has not been initialized yet; it loads on the first inference." if exists
+                     else f"No YOLO model at '{MODEL_PATH}'.",
+            "classes": [],
+            "supported_categories": [],
+        }
     try:
         m = load()
         names = list(m.names.values())
         sup = sorted({CLASS_MAP[n.lower()] for n in names if n.lower() in CLASS_MAP})
-        return {"loaded": True, "path": MODEL_PATH, "classes": names, "supported_categories": sup}
+        return {"loaded": True, "path": MODEL_PATH, "model_file_exists": True,
+                "classes": names, "supported_categories": sup}
     except Exception as e:
-        return {"loaded": False, "path": MODEL_PATH, "error": str(e), "classes": [], "supported_categories": []}
+        return {"loaded": False, "path": MODEL_PATH, "model_file_exists": os.path.exists(MODEL_PATH),
+                "error": str(e), "classes": [], "supported_categories": []}
 
 
 def detect(frame, conf=CONF):
