@@ -55,8 +55,18 @@ let stream,timer;async function live(){M.innerHTML=`<h2>Live Monitoring</h2><div
 <div class="grid"><video id="vid" autoplay muted playsinline></video><img id="ov" alt=""></div></div><div class="card"><b>Event feed</b><div id="feed" class="muted">No events yet.</div></div>`;
 $('#st').onclick=async()=>{if($('#src').value==='rtsp')return $('#lv').innerHTML='<p class="err">Server-side RTSP is not configured. Add camera settings to the backend .env (credentials stay server-side).</p>';
 try{stream=await navigator.mediaDevices.getUserMedia({video:true});$('#vid').srcObject=stream;$('#stat').textContent='Connected';$('#stat').className='ok';timer=setInterval(grab,2500)}catch(e){$('#lv').innerHTML=`<p class="err">Camera unavailable: ${esc(e.message)}</p>`}};
-$('#sp').onclick=stop;async function grab(){const v=$('#vid');if(!v.videoWidth)return;const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);const t=performance.now();
-c.toBlob(async b=>{const fd=new FormData();fd.append('file',b,'webcam.jpg');fd.append('save','true');try{const r=await(await fetch('/api/vision/analyze',{method:'POST',body:fd})).json();if(r.detail)throw new Error(r.detail);$('#ov').src=r.output+'?t='+Date.now();$('#fps').textContent=`Latency ${Math.round(performance.now()-t)} ms`;if(r.violations.length)$('#feed').innerHTML=r.violations.map(v=>`<div class="${v.severity}">${new Date().toLocaleTimeString()} — ${v.category} (${v.certainty})</div>`).join('')+$('#feed').innerHTML}catch(e){$('#lv').innerHTML=`<p class="err">${esc(e.message)}</p>`;stop()}},'image/jpeg',.8)}}
+$('#sp').onclick=stop;let frameInFlight=false;
+async function grab(){
+const v=$('#vid');if(frameInFlight||!v||!v.videoWidth)return;frameInFlight=true;
+try{const c=document.createElement('canvas');c.width=Math.min(v.videoWidth,640);c.height=Math.round(v.videoHeight*c.width/v.videoWidth);c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+const blob=await new Promise(resolve=>c.toBlob(resolve,'image/jpeg',.7));if(!blob)throw new Error('Camera frame capture failed');
+const fd=new FormData();fd.append('file',blob,'webcam.jpg');fd.append('save','true');const response=await fetch('/api/vision/analyze',{method:'POST',body:fd});const raw=await response.text();let r;
+try{r=JSON.parse(raw)}catch{throw new Error(raw.trim()||'Empty response (HTTP '+response.status+'); retrying')}
+if(!response.ok)throw new Error((r&&r.detail)||('HTTP '+response.status+'; retrying'));if(r.detail)throw new Error(r.detail);
+if(r.output)$('#ov').src=r.output+'?t='+Date.now();$('#fps').textContent='Latency '+Math.round(Number(r.ms)||0)+' ms';
+if(Array.isArray(r.violations)&&r.violations.length)$('#feed').innerHTML=r.violations.map(x=>'<div class="'+esc(x.severity)+'">'+new Date().toLocaleTimeString()+' — '+esc(x.category)+' ('+esc(x.certainty)+')</div>').join('')+$('#feed').innerHTML;
+}catch(e){const f=$('#fps');if(f)f.textContent='Frame failed; retrying: '+esc(e.message)}finally{frameInFlight=false}
+}
 function stop(){clearInterval(timer);stream&&stream.getTracks().forEach(t=>t.stop());stream=null;const s=$('#stat');if(s){s.textContent='Disconnected';s.className='muted'}}
 
 async function incidents(){M.innerHTML=`<h2>Incident Management</h2><div class="card"><div class="row"><input id="q" placeholder="Search…"><select id="s"><option value="">Any status</option><option>pending_review</option><option>confirmed</option><option>rejected</option></select><select id="o"><option value="-timestamp">Newest</option><option value="-confidence">Confidence</option><option value="-severity">Severity</option></select><a href="/api/incidents/export/csv"><button class="alt">Export CSV</button></a></div><div id="t"></div></div><div id="d"></div>`;
