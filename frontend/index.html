@@ -76,6 +76,8 @@ if(r.output)$('#ov').src=r.output+'?t='+Date.now();$('#fps').textContent='Latenc
 if(Array.isArray(r.violations)&&r.violations.length)$('#feed').innerHTML=r.violations.map(x=>'<div class="'+esc(x.severity)+'">'+new Date().toLocaleTimeString()+' — '+esc(x.category)+' ('+esc(x.certainty)+')</div>').join('')+$('#feed').innerHTML;
 }catch(e){const f=$('#fps');if(f)f.textContent='Frame failed; retrying: '+esc(e.message)}finally{frameInFlight=false}
 }
+}
+
 function stop(){clearInterval(timer);stream&&stream.getTracks().forEach(t=>t.stop());stream=null;const s=$('#stat');if(s){s.textContent='Disconnected';s.className='muted'}}
 
 async function incidents(){M.innerHTML=`<h2>Incident Management</h2><div class="card"><div class="row"><input id="q" placeholder="Search…"><select id="s"><option value="">Any status</option><option>pending_review</option><option>confirmed</option><option>rejected</option></select><select id="o"><option value="-timestamp">Newest</option><option value="-confidence">Confidence</option><option value="-severity">Severity</option></select><a href="/api/incidents/export/csv"><button class="alt">Export CSV</button></a></div><div id="t"></div></div><div id="d"></div>`;
