@@ -1,0 +1,14 @@
+
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://safesight-ai-e4ap.onrender.com/api/:path*"
+    },
+    {
+      "source": "/files/:path*",
+      "destination": "https://safesight-ai-e4ap.onrender.com/files/:path*"
+    }
+  ]
+}
+
