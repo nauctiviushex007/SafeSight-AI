@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from . import models, config, vision, rag, svm_module
+from . import models, config, vision
 from .database import get_db
 
 r = APIRouter(prefix="/api")
@@ -65,23 +65,28 @@ def model_status():
 
 @r.post("/svm/train")
 def svm_train():
+    from . import svm_module
     try: return svm_module.train()
     except Exception as e: raise HTTPException(400, str(e))
 
 
 @r.post("/rag/upload")
 async def rag_upload(file: UploadFile = File(...)):
+    from . import rag
     data = await _read(file, (".pdf", ".txt"))
     try: return {"document": file.filename, "chunks": rag.ingest(file.filename, data)}
     except ValueError as e: raise HTTPException(400, str(e))
 
 
 @r.get("/rag/documents")
-def rag_docs(): return rag.documents()
+def rag_docs():
+    from . import rag
+    return rag.documents()
 
 
 @r.post("/rag/ask")
-def rag_ask(body: dict): 
+def rag_ask(body: dict):
+    from . import rag
     q = (body.get("question") or "").strip()
     if not q: raise HTTPException(400, "Question required")
     return rag.answer(q)
