@@ -43,10 +43,20 @@ async def analyze(file: UploadFile = File(...), conf: float = Form(vision.CONF),
 
 @r.get("/models/status")
 def model_status():
-    # Keep this diagnostic route responsive; model initialization happens on first inference.
-    return {"yolo": vision.status(check_load=False), "class_map": vision.CLASS_MAP, "svm": svm_module.metrics(),
-            "limitations": ["Generic COCO models cannot detect helmets/vests.", "PPE-to-person association is geometric and can be wrong.",
-                            "Zones assume a fixed camera; perspective is not corrected."]}
+    # Diagnostics must never initialize ML runtimes or read evaluation artifacts.
+    # YOLO/PyTorch initialization happens only when an inference request needs it.
+    yolo = vision.status(check_load=False)
+    return {
+        "yolo": yolo,
+        "class_map": vision.CLASS_MAP,
+        "svm": None,
+        "svm_status": "Metrics are not loaded by this lightweight endpoint. Open Model Evaluation to train or inspect SVM results.",
+        "limitations": [
+            "Generic COCO models cannot detect helmets/vests.",
+            "PPE-to-person association is geometric and can be wrong.",
+            "Zones assume a fixed camera; perspective is not corrected."
+        ]
+    }
 
 
 @r.post("/svm/train")
