@@ -1,5 +1,5 @@
 """YOLO inference. Class names from YOUR model are mapped to app categories via CLASS_MAP."""
-import os, json, time, tempfile, uuid
+import os, json, time, tempfile, uuid, logging, threading
 import cv2, numpy as np
 from . import config
 from .rules_engine import Detection, evaluate
@@ -12,15 +12,23 @@ CLASS_MAP = json.loads(os.getenv("CLASS_MAP", json.dumps({
     "vest": "vest", "safety vest": "vest", "safety-vest": "vest"})))
 OUT = "data/outputs"; os.makedirs(OUT, exist_ok=True)
 _model = None
+_model_lock = threading.Lock()
+logger = logging.getLogger(__name__)
 
 
 def load():
     global _model
     if _model is None:
-        if not os.path.exists(MODEL_PATH):
-            raise RuntimeError(f"No YOLO model at '{MODEL_PATH}'. Train/download a PPE model (.pt) and set YOLO_MODEL_PATH.")
-        from ultralytics import YOLO
-        _model = YOLO(MODEL_PATH)
+        with _model_lock:
+            if _model is None:
+                exists = os.path.exists(MODEL_PATH)
+                logger.info("YOLO model initialization requested: path=%s exists=%s", MODEL_PATH, exists)
+                if not exists:
+                    raise RuntimeError(f"No YOLO model at '{MODEL_PATH}'. Train/download a PPE model (.pt) and set YOLO_MODEL_PATH.")
+                from ultralytics import YOLO
+                started = time.monotonic()
+                _model = YOLO(MODEL_PATH)
+                logger.info("YOLO model initialized in %.1f seconds", time.monotonic() - started)
     return _model
 
 
