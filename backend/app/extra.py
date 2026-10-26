@@ -1,6 +1,7 @@
 import os, time
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from . import models, config, vision, rag, svm_module
@@ -25,7 +26,10 @@ async def _read(f: UploadFile, exts):
 async def analyze(file: UploadFile = File(...), conf: float = Form(vision.CONF), save: bool = Form(True), db: Session = Depends(get_db)):
     data = await _read(file, IMG + VID)
     try:
-        res = (vision.analyze_image if file.filename.lower().endswith(IMG) else vision.analyze_video)(data, conf)
+        analyze_fn = vision.analyze_image if file.filename.lower().endswith(IMG) else vision.analyze_video
+        # YOLO/PyTorch inference is CPU-heavy and synchronous. Run it in a worker
+        # thread so it cannot block the FastAPI event loop and stall health/status routes.
+        res = await run_in_threadpool(analyze_fn, data, conf)
     except ValueError as e: raise HTTPException(400, str(e))
     except RuntimeError as e: raise HTTPException(503, str(e))
     except Exception as e: raise HTTPException(500, f"Inference failed: {e}")
