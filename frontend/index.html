@@ -29,12 +29,21 @@ const empty=t=>`<div class="card muted">${t}</div>`;let charts=[];
 function chart(id,type,obj,label){const c=new Chart($('#'+id),{type,data:{labels:Object.keys(obj),datasets:[{label,data:Object.values(obj),backgroundColor:['#3b82f6','#2dd4bf','#f59e0b','#ef4444','#8b5cf6'],borderColor:'#3b82f6',tension:.3}]},options:{plugins:{legend:{labels:{color:'#8da0bd'}}},scales:type==='doughnut'?{}:{x:{ticks:{color:'#8da0bd'}},y:{ticks:{color:'#8da0bd'},beginAtZero:true}}}});charts.push(c)}
 const incTable=l=>l.length?`<table><tr><th>ID</th><th>Time</th><th>Category</th><th>Severity</th><th>Conf.</th><th>Certainty</th><th>Status</th></tr>${l.map(i=>`<tr><td>${i.id}</td><td>${new Date(i.timestamp+'Z').toLocaleString()}</td><td>${i.category}</td><td class="${i.severity}">${i.severity}</td><td>${(i.confidence*100).toFixed(0)}%</td><td>${i.certainty}</td><td><span class="tag">${i.status}</span></td></tr>`).join('')}</table>`:'<p class="muted">No incidents yet.</p>';
 
-async function dashboard(){const s=await api('/dashboard/summary'),l=(await api('/incidents')).slice(0,8);
-M.innerHTML=`<h2>Dashboard</h2>${s.has_data?'':empty('No data yet. Analyse an image on the Vision page to create the first events.')}
-<div class="grid">${[['Total events',s.total_events],['Potential PPE violations',s.ppe_violations],['Restricted-zone alerts',s.restricted_zone_alerts],['Awaiting review',s.pending_review]].map(([a,b])=>`<div class="card"><div class="muted">${a}</div><div class="big">${b}</div></div>`).join('')}</div>
-<div class="grid"><div class="card"><canvas id="c1"></canvas></div><div class="card"><canvas id="c2"></canvas></div></div>
-<div class="card"><b>Recent incidents</b>${incTable(l)}</div><div class="row"><a href="#vision"><button>Analyse image/video</button></a><a href="#assistant"><button class="alt">Ask safety assistant</button></a></div>`;
-chart('c1','line',Object.fromEntries(s.events_over_time.map(e=>[e.date,e.count])),'Events per day');chart('c2','doughnut',s.by_category,'By category')}
+async function dashboard(){
+  const s=await api('/dashboard/summary');
+  let l=[];try{const rows=await api('/incidents');if(Array.isArray(rows))l=rows.slice(0,8)}catch(e){console.warn('Recent incidents unavailable:',e)}
+  const total=Number(s.total_events)||0, ppe=Number(s.ppe_violations)||0, zone=Number(s.restricted_zone_alerts)||0, pending=Number(s.pending_review)||0;
+  const days=Array.isArray(s.events_over_time)?s.events_over_time:[];
+  const cats=s.by_category&&typeof s.by_category==='object'?s.by_category:{};
+  M.innerHTML=`<h2>Dashboard</h2>${s.has_data?'':empty('No events recorded yet. Use Vision Analysis to process an image and create events.')}
+  <div class="grid">${[['Total events',total],['Potential PPE violations',ppe],['Restricted-zone alerts',zone],['Awaiting review',pending]].map(([a,b])=>`<div class="card"><div class="muted">${a}</div><div class="big">${b}</div></div>`).join('')}</div>
+  <div class="grid"><div class="card"><canvas id="c1"></canvas></div><div class="card"><canvas id="c2"></canvas></div></div>
+  <div class="card"><b>Recent incidents</b>${incTable(l)}</div><div class="row"><a href="#vision"><button>Analyse image/video</button></a><a href="#assistant"><button class="alt">Ask safety assistant</button></a></div>`;
+  if(typeof Chart!=='undefined'){
+    try{chart('c1','line',Object.fromEntries(days.map(e=>[e.date,e.count])),'Events per day')}catch(e){console.warn('Events chart unavailable:',e)}
+    try{chart('c2','doughnut',cats,'By category')}catch(e){console.warn('Category chart unavailable:',e)}
+  }
+}
 
 async function vision(){M.innerHTML=`<h2>Vision Analysis</h2><div class="card"><div class="drop" id="dz">Drag &amp; drop an image/video here or <input type="file" id="f" accept="image/*,video/*"></div>
 <div class="row" style="margin-top:12px"><label>Confidence <input type="number" id="cf" value="0.35" min="0.05" max="0.95" step="0.05" style="width:80px"></label><button id="go">Analyse</button><button class="alt" id="clr">Clear</button></div><div id="pv"></div></div><div id="res"></div>`;
